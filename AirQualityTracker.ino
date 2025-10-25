@@ -37,6 +37,15 @@ int loops;
 int seconds, minutes, hours;
 int brightness, prv_brightness;
 
+void warnLevel(float val, float a, float b, float c, float d, float e) {
+  if (val <= a) strcpy(buffer, "Tot"); return;
+  if (val <= b) strcpy(buffer, "Kha"); return;
+  if (val <= c) strcpy(buffer, "Trung binh"); return;
+  if (val <= d) strcpy(buffer, "Xau"); return;
+  if (val <= e) strcpy(buffer, "Rat xau"); return;
+  strcpy(buffer, "Nguy hai");
+}
+
 void readPMS() {
   if (pms.available() >= 32 && pms.read() == 0x42 && pms.read() == 0x4D) {
     frame[0] = 0x42;
@@ -70,9 +79,6 @@ void readSensors() {
   
   float tmp_tvoc = analogRead(TVOC_PIN)*(1000.0/1023.0);
   float tmp_co = constrain(pow(10, analogRead(CO_PIN)*(6.43786/1023.0)-0.2865061), 0.0, 1000.0);
-  
-  tmp_tvoc = tmp_tvoc*(1000.0/1023.0);
-  tmp_co = tmp_co*(1000.0/1023.0);
 
   tvoc = tmp_tvoc;
   co = tmp_co;
