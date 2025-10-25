@@ -19,7 +19,9 @@
 #define RX_PIN 8
 #define TX_PIN 9
 
-#define BATTERY_PIN A4
+#define POT_PIN A2
+
+#define BATT_PIN A3
 
 SoftwareSerial pms(RX_PIN, TX_PIN);
 U8G2_SH1106_128X64_NONAME_1_HW_I2C display(U8G2_R0);
@@ -33,6 +35,7 @@ int frame[32];
 int loops;
 
 int seconds, minutes, hours;
+int brightness, prv_brightness;
 
 void readPMS() {
   if (pms.available() >= 32 && pms.read() == 0x42 && pms.read() == 0x4D) {
@@ -56,7 +59,7 @@ void readPMS() {
 }
 
 void readSensors() {
-  if (loops%MEASUREMENT_INTERVAL > 0) return;
+  if (loops%(MEASUREMENT_INTERVAL*20) > 0) return;
   readPMS();
   float tmp_temperature = dht.readTemperature();
   float tmp_humidity = dht.readHumidity();
@@ -64,20 +67,22 @@ void readSensors() {
     temperature = tmp_temperature;
     humidity = tmp_humidity;
   }
-
-  float tmp_tvoc = analogRead(TVOC_PIN);
-  float tmp_co = analogRead(CO_PIN);
+  
+  float tmp_tvoc = analogRead(TVOC_PIN)*(1000.0/1023.0);
+  float tmp_co = constrain(pow(10, analogRead(CO_PIN)*(6.43786/1023.0)-0.2865061), 0.0, 1000.0);
+  
   tmp_tvoc = tmp_tvoc*(1000.0/1023.0);
   tmp_co = tmp_co*(1000.0/1023.0);
 
   tvoc = tmp_tvoc;
   co = tmp_co;
 }
+
 void drawBattery() {
-  int voltage = analogRead(BATTERY);
+  int box_size = constrain(analogRead(BATT_PIN)*(15.0/1023.0)-7.0, 0, 4.5)*(12.0/4.5);
   display.drawRFrame(128-15, 0, 14, 4, 0);
   display.drawRBox(127, 1, 1, 2, 0);
-  display.drawRBox(128-14, 1, 3, 2, 0);
+  display.drawRBox(128-14, 1, box_size, 2, 0);
 }
 
 void drawTopRow() {
@@ -97,28 +102,28 @@ void printValues() {
   display.print("Do am: " + String(humidity) + "%");
   
   display.setCursor(0, FONT_HEIGHT*3+7);
-  display.print("TVOC ~ " + String(tvoc));
+  display.print("TVOC ~ " + String(tvoc) + ' ' + buffer);
   
   display.setCursor(0, FONT_HEIGHT*4+7);
-  display.print("CO ~ " + String(co));
+  display.print("CO ~ " + String(co) + ' ' + buffer);
 
   display.setCursor(0, FONT_HEIGHT*5+7);
-  display.print("PM1.0: " + String(pm_1_0) + " ug/m3");
+  display.print("PM1.0: " + String(pm_1_0) + " ug/m3 " + buffer);
 
   display.setCursor(0, FONT_HEIGHT*6+7);
-  display.print("PM2.5: " + String(pm_2_5) + " ug/m3");
+  display.print("PM2.5: " + String(pm_2_5) + " ug/m3 " + buffer);
 
   display.setCursor(0, FONT_HEIGHT*7+7);
-  display.print("PM10.0: " + String(pm_10_0) + " ug/m3");
+  display.print("PM10.0: " + String(pm_10_0) + " ug/m3 " + buffer);
 }
 
 void setup() {
-  temperature, humidity = 25.0, 60.0;
-  tvoc, co = 0.0, 0.0;
-  seconds, minutes, hours = 0, 0, 0;
-  pm_1_0, pm_2_5, pm_10_0 = 0.0, 0.0, 0.0;
-  for (int i = 0; i < 32; ++i) buffer[i] = "";
+  temperature = 25.0, humidity = 60.0;
+  tvoc = 0.0, co = 0.0;
+  seconds = 0, minutes = 0, hours = 0;
+  pm_1_0 = 0, pm_2_5 = 0, pm_10_0 = 0;
   loops = 0;
+  brightness = 0;
 
   pms.begin(9600);
   dht.begin();
@@ -131,19 +136,25 @@ void setup() {
 }
 
 void loop() {
-  seconds = millis()/1000;
-  minutes = seconds/60%60;
-  hours = seconds/3600;
-  seconds = seconds%60;
+  brightness = (1023-analogRead(POT_PIN))/4;
+  if (abs(brightness-prv_brightness) > 2) {
+    display.setContrast(brightness);
+    prv_brightness = brightness;
+  }
+  if (loops%20 == 0) {
+    seconds = millis()/1000;
+    minutes = seconds/60%60;
+    hours = seconds/3600;
+    seconds = seconds%60;
+    
+    readSensors();
   
-  readSensors();
-
-  display.firstPage();
-  do {
-    drawTopRow();
-    printValues();
-  } while (display.nextPage());
-  
+    display.firstPage();
+    do {
+      drawTopRow();
+      printValues();
+    } while (display.nextPage());
+  }
   ++loops;
-  delay(1000);
+  delay(50);
 }
