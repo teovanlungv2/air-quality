@@ -4,7 +4,7 @@
 
 #define MEASUREMENT_INTERVAL 5
 
-#define FONT u8g2_font_5x7_tr
+#define FONT u8g2_font_5x8_tr
 #define FONT_WIDTH 5
 #define FONT_HEIGHT 8
 
@@ -28,22 +28,22 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C display(U8G2_R0);
 DHT dht(DHT_PIN, DHT_TYPE);
 
 float temperature, humidity;
-float tvoc, co;
+float tvoc, co, co2;
 int pm_1_0, pm_2_5, pm_10_0;
 char buffer[32];
 int frame[32];
 int loops;
 
 int seconds, minutes, hours;
-int brightness, prv_brightness;
+int mode, prv_mode;
 
 void warnLevel(float val, float a, float b, float c, float d, float e) {
-  if (val <= a) strcpy(buffer, "Tot"); return;
-  if (val <= b) strcpy(buffer, "Kha"); return;
-  if (val <= c) strcpy(buffer, "Trung binh"); return;
-  if (val <= d) strcpy(buffer, "Xau"); return;
-  if (val <= e) strcpy(buffer, "Rat xau"); return;
-  strcpy(buffer, "Nguy hai");
+  if (val <= a) strcpy(buffer, "Tot");
+  else if (val <= b) strcpy(buffer, "Kha");
+  else if (val <= c) strcpy(buffer, "Trung binh");
+  else if (val <= d) strcpy(buffer, "Xau");
+  else if (val <= e) strcpy(buffer, "Rat xau");
+  else strcpy(buffer, "Nguy hai");
 }
 
 void readPMS() {
@@ -77,8 +77,8 @@ void readSensors() {
     humidity = tmp_humidity;
   }
   
-  float tmp_tvoc = analogRead(TVOC_PIN)*(1000.0/1023.0);
-  float tmp_co = constrain(pow(10, analogRead(CO_PIN)*(6.43786/1023.0)-0.2865061), 0.0, 1000.0);
+  float tmp_tvoc = analogRead(TVOC_PIN)*(100.0/1023.0);
+  float tmp_co = constrain(pow(10, analogRead(CO_PIN)*(5.0/1023.0)*1.287572 - 0.286506), 0.0, 1000.0);
 
   tvoc = tmp_tvoc;
   co = tmp_co;
@@ -101,35 +101,47 @@ void drawTopRow() {
 }
 
 void printValues() {
-  display.setCursor(0, FONT_HEIGHT+7);
-  display.print("Nhiet do: " + String(temperature) + "C");
-  
-  display.setCursor(0, FONT_HEIGHT*2+7);
-  display.print("Do am: " + String(humidity) + "%");
-  
-  display.setCursor(0, FONT_HEIGHT*3+7);
-  display.print("TVOC ~ " + String(tvoc) + ' ' + buffer);
-  
-  display.setCursor(0, FONT_HEIGHT*4+7);
-  display.print("CO ~ " + String(co) + ' ' + buffer);
+  switch(mode) {
+    case 0:
+      display.setCursor(0, FONT_HEIGHT+7);
+      display.print("Nhiet do: " + String(temperature) + "C");
+      
+      display.setCursor(0, FONT_HEIGHT*2+7);
+      display.print("Do am: " + String(humidity) + "%");
+    
+      display.setCursor(0, FONT_HEIGHT*3+7);
+      display.print("TVOC ~ " + String(tvoc) + ' ' + buffer);
+    
+      warnLevel(co, 6.0, 9.0, 13.5, 18.0, 25.0);
+      display.setCursor(0, FONT_HEIGHT*4+7);
+      display.print("CO: " + String(co) + " ppm " + buffer);
 
-  display.setCursor(0, FONT_HEIGHT*5+7);
-  display.print("PM1.0: " + String(pm_1_0) + " ug/m3 " + buffer);
+      warnLevel(co, 400.0, 1000.0, 2000.0, 5000.0, 50000.0);
+      display.setCursor(0, FONT_HEIGHT*5+7);
+      display.print("CO2: " + String(co2) + " ppm " + buffer);
 
-  display.setCursor(0, FONT_HEIGHT*6+7);
-  display.print("PM2.5: " + String(pm_2_5) + " ug/m3 " + buffer);
-
-  display.setCursor(0, FONT_HEIGHT*7+7);
-  display.print("PM10.0: " + String(pm_10_0) + " ug/m3 " + buffer);
+      warnLevel(pm_1_0, 10.0, 20.0, 35.0, 50.0, 100.0);
+      display.setCursor(0, FONT_HEIGHT*6+7);
+      display.print("PM1.0: " + String(pm_1_0) + " ug/m3 " + buffer);
+      break;
+    case 1:
+      warnLevel(pm_2_5, 12.5, 25.0, 50.0, 150.0, 300.0);
+      display.setCursor(0, FONT_HEIGHT+7);
+      display.print("PM2.5: " + String(pm_2_5) + " ug/m3 " + buffer);
+    
+      warnLevel(pm_10_0, 25.0, 50.0, 100.0, 300.0, 600.0);
+      display.setCursor(0, FONT_HEIGHT*2+7);
+      display.print("PM10.0: " + String(pm_10_0) + " ug/m3 " + buffer);
+      break;
+  }
 }
 
 void setup() {
   temperature = 25.0, humidity = 60.0;
-  tvoc = 0.0, co = 0.0;
+  tvoc = 0.0, co = 0.0, co2 = 0.0;
   seconds = 0, minutes = 0, hours = 0;
   pm_1_0 = 0, pm_2_5 = 0, pm_10_0 = 0;
   loops = 0;
-  brightness = 0;
 
   pms.begin(9600);
   dht.begin();
@@ -138,14 +150,18 @@ void setup() {
   delay(10000);
   
   display.setFont(FONT);
-  display.setContrast(75);
+  display.setContrast(50);
 }
 
 void loop() {
-  brightness = (1023-analogRead(POT_PIN))/4;
-  if (abs(brightness-prv_brightness) > 2) {
-    display.setContrast(brightness);
-    prv_brightness = brightness;
+  mode = (1023-analogRead(POT_PIN))/127;
+  if (abs(mode-prv_mode) > 0) {
+    display.firstPage();
+    do {
+      drawTopRow();
+      printValues();
+    } while (display.nextPage());
+    prv_mode = mode;
   }
   if (loops%20 == 0) {
     seconds = millis()/1000;
@@ -154,7 +170,7 @@ void loop() {
     seconds = seconds%60;
     
     readSensors();
-  
+
     display.firstPage();
     do {
       drawTopRow();
