@@ -50,14 +50,6 @@ void warnLevel(float val, float a, float b, float c, float d, float e) {
   else strcpy(buffer, "Nguy hai");
 }
 
-int countDigits(int n) {
-  if (n >= 10000) return 5;
-  if (n >= 1000) return 4;
-  if (n >= 100) return 3;
-  if (n >= 10) return 2;
-  return 1;
-}
-
 int calcAQI() {
   if (pm_1_0 > 50 || pm_2_5 > 100 || pm_10_0 > 300 || co > 25.0 || aqi == 5) {
     aqi = 5;
@@ -106,25 +98,6 @@ void giveRecommendation(int type) {
         strcpy(buffer, "Khong ra ngoai, loc khi");
     }
   }
-}
-
-void drawGraph(int minX, int maxX, int minY, int maxY) {
-  display.setFont(u8g2_font_4x6_mr);
-  int offset = countDigits(maxY)*4;
-
-  display.drawVLine(offset+2, 9, 48);
-  display.drawHLine(offset+1, 55, 127-offset);
-  for (int i = 0; i <= 3; ++i) {
-    int x = offset+1, y = 56/4*(i+1)-1;
-    display.drawPixel(x, y);
-    display.setCursor(0, y);
-    display.print(minY + (maxY-minY)*(3-i)/3);
-    x = offset + 2 + (109 - 2*offset)*i/3, y = 56;
-    display.drawPixel(x, y);
-    display.setCursor(x, 63);
-    display.print(minX + (maxX-minX)*i/3);
-  }
-  display.setFont(FONT);
 }
 
 void readPMS() {
