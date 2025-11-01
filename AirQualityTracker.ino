@@ -34,7 +34,6 @@ float co;
 uint16_t tvoc, co2, aqi;
 uint16_t pm_1_0, pm_2_5, pm_10_0;
 char buffer[50];
-uint16_t data[50];
 uint16_t frame[32];
 uint16_t loops;
 
